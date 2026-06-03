@@ -30,8 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -81,11 +80,5 @@ jobs:
             - **Windows**: Run the `.msi` installer
             - **Linux/Kali**: `sudo dpkg -i red-note_*.deb`
             - **macOS**: Open `.dmg` and drag to Applications
-
-            ### First Run
-            1. Go to Settings
-            2. Enter your RedTrack server URL
-            3. Enter your API key (RedTrack → Settings → API Key)
-            4. Click Test Connection
           releaseDraft: false
           prerelease: false
