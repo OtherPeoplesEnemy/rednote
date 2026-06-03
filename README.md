@@ -33,8 +33,8 @@ sudo apt install libwebkit2gtk-4.0-dev libssl-dev libgtk-3-dev libayatana-appind
 ### Build
 
 ```bash
-git clone https://github.com/YOURUSERNAME/redtrack.git
-cd redtrack/rednote
+git clone https://github.com/OtherPeoplesEnemy/rednote.git
+cd rednote
 npm install
 npm run tauri build
 ```
