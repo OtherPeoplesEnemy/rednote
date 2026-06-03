@@ -425,7 +425,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
 
     let mut pushed = 0;
     let mut updated = 0;
-    let mut skipped = 0;
+    let skipped = 0;
     let mut errors = Vec::new();
 
     for finding in &findings {
