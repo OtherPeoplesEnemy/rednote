@@ -10,10 +10,35 @@ use chrono::Utc;
 
 struct DbState(String); // Just store the path, open per command
 
+
+// ─── Simple Logger ────────────────────────────────────────────────────────────
+
+fn log(msg: &str) {
+    let log_path = std::path::PathBuf::from(
+        std::env::var("APPDATA").unwrap_or_else(|_| "C:\\".to_string())
+    ).join("RedNote").join("rednote.log");
+    
+    let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let line = format!("[{}] {}\n", timestamp, msg);
+    
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true).append(true).open(&log_path) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
 fn open_db(state: &DbState) -> Result<Connection, String> {
-    let conn = Connection::open(&state.0).map_err(|e| e.to_string())?;
+    log(&format!("open_db: {}", state.0));
+    let conn = Connection::open(&state.0).map_err(|e| {
+        log(&format!("open_db ERROR: {}", e));
+        e.to_string()
+    })?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;")
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            log(&format!("pragma ERROR: {}", e));
+            e.to_string()
+        })?;
     Ok(conn)
 }
 
