@@ -382,6 +382,7 @@ fn save_finding(finding: Finding, state: State<DbState>) -> Result<Finding, Stri
         ).map_err(|e| e.to_string())?;
     }
 
+    log("save_finding: COMPLETE");
     Ok(finding)
 }
 
