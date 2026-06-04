@@ -510,11 +510,14 @@ fn fetch_redtrack_engagements(state: State<DbState>) -> Result<serde_json::Value
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 fn main() {
-    let db_path = tauri::api::path::app_data_dir(&tauri::Config::default())
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("rednote.db");
-
-    std::fs::create_dir_all(db_path.parent().unwrap()).ok();
+    // Use a simple path that always works
+    let home = std::env::var("APPDATA")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_else(|_| ".".to_string());
+    
+    let db_dir = std::path::PathBuf::from(&home).join("RedNote");
+    std::fs::create_dir_all(&db_dir).unwrap_or(());
+    let db_path = db_dir.join("rednote.db");
 
     let conn = Connection::open(&db_path).expect("Failed to open database");
     setup_db(&conn).expect("Failed to setup database");
