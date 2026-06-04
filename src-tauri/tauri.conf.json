@@ -18,7 +18,11 @@
       },
       "fs": {
         "all": true,
-        "scope": ["$APPDATA/*", "$DOCUMENT/*", "$HOME/.rednote/*"]
+        "scope": [
+          "$APPDATA/*",
+          "$DOCUMENT/*",
+          "$HOME/.rednote/*"
+        ]
       },
       "dialog": {
         "all": true
@@ -30,7 +34,10 @@
       },
       "http": {
         "all": true,
-        "scope": ["https://*", "http://*"]
+        "scope": [
+          "https://*",
+          "http://*"
+        ]
       },
       "notification": {
         "all": true
@@ -46,7 +53,12 @@
         "icons/128x128@2x.png",
         "icons/icon.icns",
         "icons/icon.ico"
-      ]
+      ],
+      "windows": {
+        "webviewInstallMode": {
+          "type": "downloadBootstrapper"
+        }
+      }
     },
     "security": {
       "csp": null
