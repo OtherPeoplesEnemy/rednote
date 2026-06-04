@@ -487,7 +487,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
             }
         } else {
             // New finding
-            let url = format!("{}/api/findings/{}/create", config.redtrack_url, engagement_id);
+            let url = format!("{}/api/findings/{}", config.redtrack_url, engagement_id);
             match client.post(&url)
                 .header("X-API-Key", &config.redtrack_api_key)
                 .json(&payload)
