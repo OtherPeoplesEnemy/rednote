@@ -481,6 +481,42 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
     Ok(PushResult { pushed, updated, skipped, errors })
 }
 
+
+#[tauri::command]
+fn create_redtrack_engagement(name: String, client: String, engagement_type: String, state: State<DbState>) -> Result<serde_json::Value, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let url = conn.query_row("SELECT value FROM config WHERE key = 'redtrack_url'", [], |r| r.get::<_, String>(0)).unwrap_or_default();
+    let key = conn.query_row("SELECT value FROM config WHERE key = 'redtrack_api_key'", [], |r| r.get::<_, String>(0)).unwrap_or_default();
+    drop(conn);
+
+    if url.is_empty() { return Err("RedTrack URL not configured".to_string()); }
+
+    let client_http = reqwest::blocking::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let payload = serde_json::json!({
+        "name": name,
+        "client": client,
+        "type": engagement_type,
+        "status": "Planning",
+        "scope": "",
+    });
+
+    let resp = client_http.post(format!("{}/api/engagements/", url))
+        .header("X-API-Key", key)
+        .json(&payload)
+        .send()
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Failed to create engagement: HTTP {}", resp.status()));
+    }
+
+    resp.json::<serde_json::Value>().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn fetch_redtrack_engagements(state: State<DbState>) -> Result<serde_json::Value, String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
@@ -549,6 +585,7 @@ fn main() {
             delete_finding,
             push_to_redtrack,
             fetch_redtrack_engagements,
+            create_redtrack_engagement,
         ])
         .run(tauri::generate_context!())
         .expect("Error running RedNote");
