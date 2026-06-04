@@ -510,17 +510,31 @@ fn fetch_redtrack_engagements(state: State<DbState>) -> Result<serde_json::Value
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 fn main() {
-    // Use a simple path that always works
+    // Write a startup log so we can debug
+    let log_path = std::path::PathBuf::from("C:\\RedNote_debug.txt");
+    std::fs::write(&log_path, "Starting RedNote...\n").ok();
+
     let home = std::env::var("APPDATA")
         .or_else(|_| std::env::var("HOME"))
-        .unwrap_or_else(|_| ".".to_string());
+        .unwrap_or_else(|_| "C:\\".to_string());
+    
+    std::fs::write(&log_path, format!("APPDATA: {}\n", home)).ok();
     
     let db_dir = std::path::PathBuf::from(&home).join("RedNote");
     std::fs::create_dir_all(&db_dir).unwrap_or(());
     let db_path = db_dir.join("rednote.db");
 
-    let conn = Connection::open(&db_path).expect("Failed to open database");
-    setup_db(&conn).expect("Failed to setup database");
+    std::fs::write(&log_path, format!("DB path: {}\n", db_path.display())).ok();
+
+    let conn = match Connection::open(&db_path) {
+        Ok(c) => { std::fs::write(&log_path, "DB opened OK\n").ok(); c }
+        Err(e) => { std::fs::write(&log_path, format!("DB error: {}\n", e)).ok(); panic!("DB failed: {}", e); }
+    };
+    
+    match setup_db(&conn) {
+        Ok(_) => { std::fs::write(&log_path, "DB setup OK\n").ok(); }
+        Err(e) => { std::fs::write(&log_path, format!("Setup error: {}\n", e)).ok(); panic!("Setup failed: {}", e); }
+    }
 
     tauri::Builder::default()
         .manage(DbState(Mutex::new(conn)))
