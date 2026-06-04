@@ -2,14 +2,20 @@
 
 use rusqlite::{Connection, Result, params};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
 use tauri::State;
 use uuid::Uuid;
 use chrono::Utc;
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-struct DbState(Mutex<Connection>);
+struct DbState(String); // Just store the path, open per command
+
+fn open_db(state: &DbState) -> Result<Connection, String> {
+    let conn = Connection::open(&state.0).map_err(|e| e.to_string())?;
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;")
+        .map_err(|e| e.to_string())?;
+    Ok(conn)
+}
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 
@@ -161,7 +167,7 @@ fn get_config(state: State<DbState>) -> Config {
 
 #[tauri::command]
 fn save_config(config: Config, state: State<DbState>) -> Result<(), String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     let pairs = [
         ("redtrack_url", &config.redtrack_url),
         ("redtrack_api_key", &config.redtrack_api_key),
@@ -199,7 +205,7 @@ fn list_projects(state: State<DbState>) -> Vec<Project> {
 
 #[tauri::command]
 fn create_project(name: String, client: String, engagement_type: String, state: State<DbState>) -> Result<Project, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     let now = Utc::now().to_rfc3339();
     let id = Uuid::new_v4().to_string();
     
@@ -231,7 +237,7 @@ fn create_project(name: String, client: String, engagement_type: String, state: 
 
 #[tauri::command]
 fn delete_project(id: String, state: State<DbState>) -> Result<(), String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     conn.execute("DELETE FROM projects WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -262,7 +268,7 @@ fn get_tree(project_id: String, state: State<DbState>) -> Vec<TreeNode> {
 
 #[tauri::command]
 fn create_node(project_id: String, parent_id: Option<String>, title: String, node_type: String, icon: String, state: State<DbState>) -> Result<TreeNode, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     let now = Utc::now().to_rfc3339();
     let id = Uuid::new_v4().to_string();
     
@@ -276,7 +282,7 @@ fn create_node(project_id: String, parent_id: Option<String>, title: String, nod
 
 #[tauri::command]
 fn update_node(id: String, title: Option<String>, content: Option<String>, state: State<DbState>) -> Result<(), String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     let now = Utc::now().to_rfc3339();
     if let Some(t) = title {
         conn.execute("UPDATE tree_nodes SET title = ?1, updated_at = ?2 WHERE id = ?3", params![t, now, id]).map_err(|e| e.to_string())?;
@@ -289,7 +295,7 @@ fn update_node(id: String, title: Option<String>, content: Option<String>, state
 
 #[tauri::command]
 fn delete_node(id: String, state: State<DbState>) -> Result<(), String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     conn.execute("DELETE FROM tree_nodes WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -329,22 +335,7 @@ fn get_findings(project_id: String, state: State<DbState>) -> Vec<Finding> {
 
 #[tauri::command]
 fn save_finding(finding: Finding, state: State<DbState>) -> Result<Finding, String> {
-    // Retry up to 10 times with small delay to avoid deadlock with other commands
-    let conn = {
-        let mut attempts = 0;
-        loop {
-            match state.0.try_lock() {
-                Ok(c) => break c,
-                Err(_) => {
-                    attempts += 1;
-                    if attempts > 10 {
-                        return Err("Database busy - please try again".to_string());
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                }
-            }
-        }
-    };
+    let conn = open_db(&state)?;
     let now = Utc::now().to_rfc3339();
     
     // Check if exists
@@ -371,7 +362,7 @@ fn save_finding(finding: Finding, state: State<DbState>) -> Result<Finding, Stri
 
 #[tauri::command]
 fn delete_finding(id: String, state: State<DbState>) -> Result<(), String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     conn.execute("DELETE FROM findings WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -381,7 +372,7 @@ fn delete_finding(id: String, state: State<DbState>) -> Result<(), String> {
 #[tauri::command]
 async fn push_to_redtrack(project_id: String, engagement_id: String, state: State<'_, DbState>) -> Result<PushResult, String> {
     let (findings, config) = {
-        let conn = state.0.lock().map_err(|e| e.to_string())?;
+        let conn = open_db(&state)?;
         
         let mut stmt = conn.prepare(
             "SELECT id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, refs, status, redtrack_finding_id, pushed_at, created_at, updated_at FROM findings WHERE project_id = ?1"
@@ -438,6 +429,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
     let mut updated = 0;
     let skipped = 0;
     let mut errors = Vec::new();
+    let mut updates_to_apply: Vec<(String, String)> = Vec::new();
 
     for finding in &findings {
         let payload = serde_json::json!({
@@ -508,7 +500,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
 
 #[tauri::command]
 fn create_redtrack_engagement(name: String, client: String, engagement_type: String, state: State<DbState>) -> Result<serde_json::Value, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     let url = conn.query_row("SELECT value FROM config WHERE key = 'redtrack_url'", [], |r| r.get::<_, String>(0)).unwrap_or_default();
     let key = conn.query_row("SELECT value FROM config WHERE key = 'redtrack_api_key'", [], |r| r.get::<_, String>(0)).unwrap_or_default();
     drop(conn);
@@ -543,7 +535,7 @@ fn create_redtrack_engagement(name: String, client: String, engagement_type: Str
 
 #[tauri::command]
 fn fetch_redtrack_engagements(state: State<DbState>) -> Result<serde_json::Value, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = open_db(&state)?;
     let url = conn.query_row("SELECT value FROM config WHERE key = 'redtrack_url'", [], |r| r.get::<_, String>(0)).unwrap_or_default();
     let key = conn.query_row("SELECT value FROM config WHERE key = 'redtrack_api_key'", [], |r| r.get::<_, String>(0)).unwrap_or_default();
     drop(conn);
@@ -578,14 +570,14 @@ fn main() {
         Ok(c) => c,
         Err(e) => panic!("DB failed: {}", e),
     };
-    
-    // Enable WAL mode for better concurrent access
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;").ok();
-    
     setup_db(&conn).expect("Failed to setup database");
+    drop(conn); // Close setup connection
+
+    let db_path_str = db_path.to_string_lossy().to_string();
 
     tauri::Builder::default()
-        .manage(DbState(Mutex::new(conn)))
+        .manage(DbState(db_path_str))
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
