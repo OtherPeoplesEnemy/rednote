@@ -18,7 +18,7 @@ export default function FindingEditor({ finding, node, onSave, onDelete }) {
     impact: '',
     steps_to_reproduce: '',
     remediation: '',
-    references: '',
+    refs: '',
     status: 'Open',
   })
   const [dirty, setDirty] = useState(false)
@@ -37,7 +37,7 @@ export default function FindingEditor({ finding, node, onSave, onDelete }) {
         impact: finding.impact || '',
         steps_to_reproduce: finding.steps_to_reproduce || '',
         remediation: finding.remediation || '',
-        references: finding.references || '',
+        refs: finding.refs || '',
         status: finding.status || 'Open',
       })
     }
@@ -122,7 +122,7 @@ export default function FindingEditor({ finding, node, onSave, onDelete }) {
             </div>
             <div>
               <label style={s.label}>References</label>
-              <textarea style={{ ...s.input, minHeight: 60, resize: 'vertical' }} value={form.references} onChange={e => update('references', e.target.value)} placeholder="CVE links, advisories, writeups..." />
+              <textarea style={{ ...s.input, minHeight: 60, resize: 'vertical' }} value={form.refs} onChange={e => update('refs', e.target.value)} placeholder="CVE links, advisories, writeups..." />
             </div>
             {finding?.redtrack_finding_id && (
               <div style={{ background: 'rgba(63,185,80,.1)', border: '1px solid var(--green)', borderRadius: 6, padding: 10, fontSize: 11, color: 'var(--green)' }}>
