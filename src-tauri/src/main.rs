@@ -462,18 +462,27 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
                 Ok(r) if r.status().is_success() => {
                     if let Ok(data) = r.json::<serde_json::Value>().await {
                         if let Some(rt_id) = data["id"].as_str() {
-                            let now = Utc::now().to_rfc3339();
-                            let conn = state.0.lock().map_err(|e| e.to_string())?;
-                            conn.execute(
-                                "UPDATE findings SET redtrack_finding_id = ?1, pushed_at = ?2 WHERE id = ?3",
-                                params![rt_id, now, finding.id],
-                            ).ok();
+                            // Store for later DB update outside async context
+                            updates_to_apply.push((finding.id.clone(), rt_id.to_string()));
                         }
                     }
                     pushed += 1;
                 }
                 Ok(r) => { errors.push(format!("{}: HTTP {}", finding.title, r.status())); }
                 Err(e) => { errors.push(format!("{}: {}", finding.title, e)); }
+            }
+        }
+    }
+
+    // Apply DB updates after async operations complete
+    if !updates_to_apply.is_empty() {
+        if let Ok(conn) = state.0.lock() {
+            let now = Utc::now().to_rfc3339();
+            for (finding_id, rt_id) in updates_to_apply {
+                conn.execute(
+                    "UPDATE findings SET redtrack_finding_id = ?1, pushed_at = ?2 WHERE id = ?3",
+                    params![rt_id, now, finding_id],
+                ).ok();
             }
         }
     }
