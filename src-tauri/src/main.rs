@@ -79,8 +79,8 @@ struct PushResult {
 // ─── Database Setup ───────────────────────────────────────────────────────────
 
 fn setup_db(conn: &Connection) -> Result<()> {
-    conn.execute_batch("
-        CREATE TABLE IF NOT EXISTS projects (
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             client TEXT NOT NULL DEFAULT '',
@@ -89,7 +89,6 @@ fn setup_db(conn: &Connection) -> Result<()> {
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
-
         CREATE TABLE IF NOT EXISTS tree_nodes (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -97,13 +96,12 @@ fn setup_db(conn: &Connection) -> Result<()> {
             title TEXT NOT NULL,
             node_type TEXT NOT NULL DEFAULT 'note',
             content TEXT NOT NULL DEFAULT '',
-            icon TEXT NOT NULL DEFAULT '📝',
+            icon TEXT NOT NULL DEFAULT '',
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
         );
-
         CREATE TABLE IF NOT EXISTS findings (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -118,7 +116,7 @@ fn setup_db(conn: &Connection) -> Result<()> {
             impact TEXT NOT NULL DEFAULT '',
             steps_to_reproduce TEXT NOT NULL DEFAULT '',
             remediation TEXT NOT NULL DEFAULT '',
-            "references" TEXT NOT NULL DEFAULT '',
+            refs TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'Open',
             redtrack_finding_id TEXT,
             pushed_at TEXT,
@@ -127,20 +125,18 @@ fn setup_db(conn: &Connection) -> Result<()> {
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
             FOREIGN KEY (node_id) REFERENCES tree_nodes(id) ON DELETE CASCADE
         );
-
         CREATE TABLE IF NOT EXISTS config (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
-
         CREATE TABLE IF NOT EXISTS screenshots (
             id TEXT PRIMARY KEY,
             node_id TEXT NOT NULL,
             filename TEXT NOT NULL,
             data TEXT NOT NULL,
             created_at TEXT NOT NULL
-        );
-    ")?;
+        );"
+    )?;
     Ok(())
 }
 
@@ -304,7 +300,7 @@ fn delete_node(id: String, state: State<DbState>) -> Result<(), String> {
 fn get_findings(project_id: String, state: State<DbState>) -> Vec<Finding> {
     let conn = state.0.lock().unwrap();
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, "references", status, redtrack_finding_id, pushed_at, created_at, updated_at FROM findings WHERE project_id = ?1 ORDER BY created_at DESC"
+        "SELECT id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, refs, status, redtrack_finding_id, pushed_at, created_at, updated_at FROM findings WHERE project_id = ?1 ORDER BY created_at DESC"
     ).unwrap();
     stmt.query_map(params![project_id], |row| {
         Ok(Finding {
@@ -345,12 +341,12 @@ fn save_finding(finding: Finding, state: State<DbState>) -> Result<Finding, Stri
 
     if exists {
         conn.execute(
-            "UPDATE findings SET title=?1, severity=?2, cvss_score=?3, cwe=?4, cve=?5, affected_component=?6, description=?7, impact=?8, steps_to_reproduce=?9, remediation=?10, \"references\"=?11, status=?12, updated_at=?13 WHERE id=?14",
+            "UPDATE findings SET title=?1, severity=?2, cvss_score=?3, cwe=?4, cve=?5, affected_component=?6, description=?7, impact=?8, steps_to_reproduce=?9, remediation=?10, refs=?11, status=?12, updated_at=?13 WHERE id=?14",
             params![finding.title, finding.severity, finding.cvss_score, finding.cwe, finding.cve, finding.affected_component, finding.description, finding.impact, finding.steps_to_reproduce, finding.remediation, finding.references, finding.status, now, finding.id],
         ).map_err(|e| e.to_string())?;
     } else {
         conn.execute(
-            "INSERT INTO findings (id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, "references", status, created_at, updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)",
+            "INSERT INTO findings (id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, refs, status, created_at, updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)",
             params![finding.id, finding.project_id, finding.node_id, finding.title, finding.severity, finding.cvss_score, finding.cwe, finding.cve, finding.affected_component, finding.description, finding.impact, finding.steps_to_reproduce, finding.remediation, finding.references, finding.status, now, now],
         ).map_err(|e| e.to_string())?;
     }
@@ -373,7 +369,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
         let conn = state.0.lock().map_err(|e| e.to_string())?;
         
         let mut stmt = conn.prepare(
-            "SELECT id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, "references", status, redtrack_finding_id, pushed_at, created_at, updated_at FROM findings WHERE project_id = ?1"
+            "SELECT id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, refs, status, redtrack_finding_id, pushed_at, created_at, updated_at FROM findings WHERE project_id = ?1"
         ).map_err(|e| e.to_string())?;
         
         let findings: Vec<Finding> = stmt.query_map(params![project_id], |row| {
@@ -440,7 +436,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
             "impact": finding.impact,
             "steps_to_reproduce": finding.steps_to_reproduce,
             "remediation": finding.remediation,
-            "references": finding.references,
+            refs: finding.references,
             "source": "rednote",
             "tags": ["rednote"],
         });
