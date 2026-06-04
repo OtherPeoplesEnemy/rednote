@@ -329,7 +329,22 @@ fn get_findings(project_id: String, state: State<DbState>) -> Vec<Finding> {
 
 #[tauri::command]
 fn save_finding(finding: Finding, state: State<DbState>) -> Result<Finding, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    // Retry up to 10 times with small delay to avoid deadlock with other commands
+    let conn = {
+        let mut attempts = 0;
+        loop {
+            match state.0.try_lock() {
+                Ok(c) => break c,
+                Err(_) => {
+                    attempts += 1;
+                    if attempts > 10 {
+                        return Err("Database busy - please try again".to_string());
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            }
+        }
+    };
     let now = Utc::now().to_rfc3339();
     
     // Check if exists
@@ -423,7 +438,6 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
     let mut updated = 0;
     let skipped = 0;
     let mut errors = Vec::new();
-    let mut updates_to_apply: Vec<(String, String)> = Vec::new();
 
     for finding in &findings {
         let payload = serde_json::json!({
