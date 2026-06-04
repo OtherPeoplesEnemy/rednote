@@ -53,7 +53,7 @@ struct Finding {
     impact: String,
     steps_to_reproduce: String,
     remediation: String,
-    references: String,
+    refs: String,
     status: String,
     redtrack_finding_id: Option<String>,
     pushed_at: Option<String>,
@@ -317,7 +317,7 @@ fn get_findings(project_id: String, state: State<DbState>) -> Vec<Finding> {
             impact: row.get(10)?,
             steps_to_reproduce: row.get(11)?,
             remediation: row.get(12)?,
-            references: row.get(13)?,
+            refs: row.get(13)?,
             status: row.get(14)?,
             redtrack_finding_id: row.get(15)?,
             pushed_at: row.get(16)?,
@@ -342,12 +342,12 @@ fn save_finding(finding: Finding, state: State<DbState>) -> Result<Finding, Stri
     if exists {
         conn.execute(
             "UPDATE findings SET title=?1, severity=?2, cvss_score=?3, cwe=?4, cve=?5, affected_component=?6, description=?7, impact=?8, steps_to_reproduce=?9, remediation=?10, refs=?11, status=?12, updated_at=?13 WHERE id=?14",
-            params![finding.title, finding.severity, finding.cvss_score, finding.cwe, finding.cve, finding.affected_component, finding.description, finding.impact, finding.steps_to_reproduce, finding.remediation, finding.references, finding.status, now, finding.id],
+            params![finding.title, finding.severity, finding.cvss_score, finding.cwe, finding.cve, finding.affected_component, finding.description, finding.impact, finding.steps_to_reproduce, finding.remediation, finding.refs, finding.status, now, finding.id],
         ).map_err(|e| e.to_string())?;
     } else {
         conn.execute(
             "INSERT INTO findings (id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, refs, status, created_at, updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)",
-            params![finding.id, finding.project_id, finding.node_id, finding.title, finding.severity, finding.cvss_score, finding.cwe, finding.cve, finding.affected_component, finding.description, finding.impact, finding.steps_to_reproduce, finding.remediation, finding.references, finding.status, now, now],
+            params![finding.id, finding.project_id, finding.node_id, finding.title, finding.severity, finding.cvss_score, finding.cwe, finding.cve, finding.affected_component, finding.description, finding.impact, finding.steps_to_reproduce, finding.remediation, finding.refs, finding.status, now, now],
         ).map_err(|e| e.to_string())?;
     }
 
@@ -387,7 +387,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
                 impact: row.get(10)?,
                 steps_to_reproduce: row.get(11)?,
                 remediation: row.get(12)?,
-                references: row.get(13)?,
+                refs: row.get(13)?,
                 status: row.get(14)?,
                 redtrack_finding_id: row.get(15)?,
                 pushed_at: row.get(16)?,
@@ -436,7 +436,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
             "impact": finding.impact,
             "steps_to_reproduce": finding.steps_to_reproduce,
             "remediation": finding.remediation,
-            refs: finding.references,
+            refs: finding.refs,
             "source": "rednote",
             "tags": ["rednote"],
         });
