@@ -150,7 +150,7 @@ fn setup_db(conn: &Connection) -> Result<()> {
 
 #[tauri::command]
 fn get_config(state: State<DbState>) -> Config {
-    let conn = state.0.lock().unwrap();
+    let conn = open_db(&state).unwrap();
     let get = |key: &str, default: &str| -> String {
         conn.query_row(
             "SELECT value FROM config WHERE key = ?1",
@@ -186,7 +186,7 @@ fn save_config(config: Config, state: State<DbState>) -> Result<(), String> {
 
 #[tauri::command]
 fn list_projects(state: State<DbState>) -> Vec<Project> {
-    let conn = state.0.lock().unwrap();
+    let conn = open_db(&state).unwrap();
     let mut stmt = conn.prepare(
         "SELECT id, name, client, engagement_type, redtrack_engagement_id, created_at, updated_at FROM projects ORDER BY updated_at DESC"
     ).unwrap();
@@ -246,7 +246,7 @@ fn delete_project(id: String, state: State<DbState>) -> Result<(), String> {
 
 #[tauri::command]
 fn get_tree(project_id: String, state: State<DbState>) -> Vec<TreeNode> {
-    let conn = state.0.lock().unwrap();
+    let conn = open_db(&state).unwrap();
     let mut stmt = conn.prepare(
         "SELECT id, project_id, parent_id, title, node_type, content, icon, sort_order, created_at, updated_at FROM tree_nodes WHERE project_id = ?1 ORDER BY sort_order ASC, created_at ASC"
     ).unwrap();
@@ -304,7 +304,7 @@ fn delete_node(id: String, state: State<DbState>) -> Result<(), String> {
 
 #[tauri::command]
 fn get_findings(project_id: String, state: State<DbState>) -> Vec<Finding> {
-    let conn = state.0.lock().unwrap();
+    let conn = open_db(&state).unwrap();
     let mut stmt = conn.prepare(
         "SELECT id, project_id, node_id, title, severity, cvss_score, cwe, cve, affected_component, description, impact, steps_to_reproduce, remediation, refs, status, redtrack_finding_id, pushed_at, created_at, updated_at FROM findings WHERE project_id = ?1 ORDER BY created_at DESC"
     ).unwrap();
@@ -483,7 +483,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
 
     // Apply DB updates after async operations complete
     if !updates_to_apply.is_empty() {
-        if let Ok(conn) = state.0.lock() {
+        if let Ok(conn) = open_db(&state) {
             let now = Utc::now().to_rfc3339();
             for (finding_id, rt_id) in updates_to_apply {
                 conn.execute(
