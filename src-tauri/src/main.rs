@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// windows_subsystem disabled for debugging
 
 use rusqlite::{Connection, Result, params};
 use serde::{Deserialize, Serialize};
