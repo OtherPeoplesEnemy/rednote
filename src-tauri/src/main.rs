@@ -436,7 +436,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
             "impact": finding.impact,
             "steps_to_reproduce": finding.steps_to_reproduce,
             "remediation": finding.remediation,
-            refs: finding.refs,
+            "references": finding.refs,
             "source": "rednote",
             "tags": ["rednote"],
         });
