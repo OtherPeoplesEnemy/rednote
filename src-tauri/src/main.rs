@@ -423,6 +423,7 @@ async fn push_to_redtrack(project_id: String, engagement_id: String, state: Stat
     let mut updated = 0;
     let skipped = 0;
     let mut errors = Vec::new();
+    let mut updates_to_apply: Vec<(String, String)> = Vec::new();
 
     for finding in &findings {
         let payload = serde_json::json!({
